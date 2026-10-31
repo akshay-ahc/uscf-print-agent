@@ -60,6 +60,12 @@ func looksLikeScanner(product, vendor string, vendorID uint16) bool {
 	return false
 }
 
+// Generic scanner chips report the chip maker's placeholder text, not the
+// brand on the case. Known ids are mapped to what is printed on the device.
+var scannerAliases = map[string]Scanner{
+	"0218:0210": {Name: "HT410", Vendor: "Helett"}, // reports "USBScn Chip" / "USBScn Module"
+}
+
 // prettyScanner tidies the OS strings ("Honeywell Imaging & Mobility" + "Voyager-1200g").
 func prettyScanner(product, vendor string, vendorID uint16, productID uint16) Scanner {
 	vendor = strings.TrimSpace(vendor)
@@ -73,6 +79,9 @@ func prettyScanner(product, vendor string, vendorID uint16, productID uint16) Sc
 	id := ""
 	if vendorID != 0 {
 		id = strings.ToLower(strings.TrimSpace(hex4(vendorID) + ":" + hex4(productID)))
+	}
+	if alias, ok := scannerAliases[id]; ok {
+		return Scanner{Name: alias.Name, Vendor: alias.Vendor, ID: id}
 	}
 	return Scanner{Name: product, Vendor: vendor, ID: id}
 }

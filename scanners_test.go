@@ -23,6 +23,9 @@ func TestLooksLikeScanner(t *testing.T) {
 			t.Errorf("%q / %q / %04x: got %v want %v", c.product, c.vendor, c.vid, got, c.want)
 		}
 	}
+	if a := prettyScanner("USBScn Module", "USBScn Chip", 0x0218, 0x0210); a.Name != "HT410" || a.Vendor != "Helett" {
+		t.Errorf("alias: %+v", a)
+	}
 	s := prettyScanner("Voyager-1200g", "Honeywell Imaging & Mobility Technologies", 0x0c2e, 0x0b61)
 	if s.Name != "Voyager-1200g" || s.Vendor != "Honeywell" || s.ID != "0c2e:0b61" {
 		t.Errorf("pretty: %+v", s)
