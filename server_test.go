@@ -28,7 +28,10 @@ func (f *fakeSpooler) Print(job PrintJob) (string, error) {
 func newTestServer(t *testing.T) (*Server, *fakeSpooler, *httptest.Server) {
 	t.Helper()
 	sp := &fakeSpooler{printers: []Printer{{Name: "Zebra_ZD421", Default: true, State: "ready"}}}
-	srv := &Server{cfg: &Config{Port: 1, Origins: defaultOrigins}, pairing: NewPairing(), spooler: sp, version: "test"}
+	srv := &Server{cfg: &Config{Port: 1, Origins: defaultOrigins}, pairing: NewPairing(), spooler: sp, version: "test",
+		scanners: func() ([]Scanner, error) {
+			return []Scanner{{Name: "Voyager-1200g", Vendor: "Honeywell", ID: "0c2e:0b61"}}, nil
+		}}
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
 	return srv, sp, ts
@@ -72,6 +75,10 @@ func TestStatusListsPrintersAndPairingState(t *testing.T) {
 	printers := out["printers"].([]any)
 	if len(printers) != 1 || printers[0].(map[string]any)["name"] != "Zebra_ZD421" {
 		t.Fatalf("printers %v", printers)
+	}
+	scanners := out["scanners"].([]any)
+	if len(scanners) != 1 || scanners[0].(map[string]any)["vendor"] != "Honeywell" {
+		t.Fatalf("scanners %v", scanners)
 	}
 	srv.cfg.Token = "x"
 	_, out = do(t, ts, "GET", "/v1/status", portal, "", nil)

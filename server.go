@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -26,11 +27,16 @@ type Server struct {
 	version string
 	// onPaired lets the tray refresh its menu after a successful pairing.
 	onPaired func()
+	// scanners lists plugged-in barcode scanners; nil means use the OS lister.
+	scanners func() ([]Scanner, error)
 }
 
 const maxLabelBytes = 8 << 20 // a 4x6 PDF is well under 1 MB; ZPL a few KB
 
 func (s *Server) Handler() http.Handler {
+	if s.scanners == nil {
+		s.scanners = cachedScanners(listScanners)
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v1/status", s.handleStatus)
 	mux.HandleFunc("/v1/pair", s.handlePair)
@@ -66,6 +72,7 @@ type statusResponse struct {
 	Version  string    `json:"version"`
 	Paired   bool      `json:"paired"`
 	Printers []Printer `json:"printers"`
+	Scanners []Scanner `json:"scanners"`
 	Error    string    `json:"error,omitempty"`
 }
 
@@ -83,6 +90,15 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		printers = []Printer{}
 	}
 	resp.Printers = printers
+	// Scanner detection is best effort: a failure here must not hide the printers.
+	scanners, err := s.scanners()
+	if err != nil {
+		log.Printf("list scanners: %v", err)
+	}
+	if scanners == nil {
+		scanners = []Scanner{}
+	}
+	resp.Scanners = scanners
 	writeJSON(w, http.StatusOK, resp)
 }
 
@@ -183,3 +199,24 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 }
 
 func (s *Server) addr() string { return fmt.Sprintf("127.0.0.1:%d", s.cfg.Port) }
+
+// cachedScanners asks the OS at most every few seconds: the station polls
+// status often and the USB listing is slow on both platforms.
+func cachedScanners(list func() ([]Scanner, error)) func() ([]Scanner, error) {
+	var (
+		mu    sync.Mutex
+		last  time.Time
+		value []Scanner
+		err   error
+	)
+	return func() ([]Scanner, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		if time.Since(last) < 5*time.Second {
+			return value, err
+		}
+		value, err = list()
+		last = time.Now()
+		return value, err
+	}
+}
