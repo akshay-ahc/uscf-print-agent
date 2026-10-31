@@ -47,10 +47,30 @@ jobs:
           # The .pkg installs the binary to /usr/local/bin and starts it for the installing user.
           mkdir -p pkgroot/usr/local/bin scripts
           cp build/uscf-print-agent pkgroot/usr/local/bin/uscf-print-agent
+          # After install: write the logged-in user's LaunchAgent and start it through
+          # launchd, so it is running before the installer window closes and again
+          # at every login. (A plain background process is killed when the installer exits.)
           cat > scripts/postinstall <<'EOF'
           #!/bin/sh
           user="$(stat -f '%Su' /dev/console)"
-          sudo -u "$user" /usr/local/bin/uscf-print-agent --install >/dev/null 2>&1 &
+          uid="$(id -u "$user")"
+          home="$(dscl . -read "/Users/$user" NFSHomeDirectory | awk '{print $2}')"
+          plist="$home/Library/LaunchAgents/com.uscompoundingfactory.print-agent.plist"
+          mkdir -p "$home/Library/LaunchAgents"
+          cat > "$plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>Label</key><string>com.uscompoundingfactory.print-agent</string>
+            <key>ProgramArguments</key><array><string>/usr/local/bin/uscf-print-agent</string></array>
+            <key>RunAtLoad</key><true/>
+            <key>KeepAlive</key><true/>
+            <key>ProcessType</key><string>Interactive</string>
+          </dict></plist>
+          PLIST
+          chown "$user" "$plist"
+          launchctl bootout "gui/$uid/com.uscompoundingfactory.print-agent" >/dev/null 2>&1 || true
+          launchctl bootstrap "gui/$uid" "$plist" >/dev/null 2>&1 || sudo -u "$user" launchctl load "$plist" >/dev/null 2>&1 || true
           exit 0
           EOF
           chmod +x scripts/postinstall
