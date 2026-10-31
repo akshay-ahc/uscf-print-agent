@@ -1,4 +1,4 @@
-# USCF Print Agent
+# USCF Portal Print Agent
 
 A small Go program for the shipping PC. It lets the Shipping Station page (in
 Chrome) see the computer's printers and print shipping labels on them
@@ -20,8 +20,8 @@ Shipping Station page (HTTPS)  →  http://127.0.0.1:17870  (this agent)
 - ZPL goes to the printer as raw bytes (Zebra). PDF goes through the OS print
   path (CUPS on macOS; on Windows the program registered for PDFs, e.g. Adobe
   Reader; Edge cannot, so use ZPL for a Zebra).
-- Config (token, port, allowed origins): `~/Library/Application Support/USCF Print Agent/config.json`
-  on macOS, `%AppData%\USCF Print Agent\config.json` on Windows.
+- Config (token, port, allowed origins): `~/Library/Application Support/USCF Portal Print Agent/config.json`
+  on macOS, `%AppData%\USCF Portal Print Agent\config.json` on Windows.
 
 ## Run
 
@@ -39,6 +39,8 @@ Go 1.22+. `go test ./...` runs the API and parsing tests.
 ```
 
 go build -ldflags "-X main.Version=0.1.0" -o uscf-print-agent .                 # this machine
+# Windows with the icon + name in the .exe properties (needs go-winres):
+# go install github.com/tc-hib/go-winres@v0.3.3 && go-winres make --in winres/winres.json --arch amd64
 GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags "-H windowsgui" -o uscf-print-agent.exe .
 ```
 

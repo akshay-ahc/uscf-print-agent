@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -41,6 +42,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/v1/status", s.handleStatus)
 	mux.HandleFunc("/v1/pair", s.handlePair)
 	mux.HandleFunc("/v1/print", s.handlePrint)
+	mux.HandleFunc("/v1/quit", s.handleQuit)
 	return s.cors(mux)
 }
 
@@ -196,6 +198,21 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	if err := json.NewEncoder(w).Encode(v); err != nil {
 		log.Printf("write response: %v", err)
 	}
+}
+
+// handleQuit stops the agent: a newer copy installing itself asks the old one
+// to leave so the exe can be replaced. Needs the pairing token, like printing.
+func (s *Server) handleQuit(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	if !s.authorized(r) {
+		writeJSON(w, http.StatusUnauthorized, map[string]any{"ok": false})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	go func() { time.Sleep(200 * time.Millisecond); os.Exit(0) }()
 }
 
 func (s *Server) addr() string { return fmt.Sprintf("127.0.0.1:%d", s.cfg.Port) }

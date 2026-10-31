@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <!-- USCF Portal Print Agent: a label printer with a shipping label coming out. Navy + green from the USCF logo. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#27508f"/>
+      <stop offset="1" stop-color="#1d3b6e"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="url(#bg)"/>
+  <!-- printer body -->
+  <rect x="40" y="96" width="176" height="76" rx="14" fill="#ffffff"/>
+  <rect x="64" y="60" width="128" height="44" rx="8" fill="#dfe7f3"/>
+  <!-- slot -->
+  <rect x="56" y="150" width="144" height="10" rx="5" fill="#1d3b6e"/>
+  <!-- status light -->
+  <circle cx="188" cy="122" r="9" fill="#0f6e56"/>
+  <!-- label coming out -->
+  <rect x="72" y="158" width="112" height="62" rx="8" fill="#ffffff" stroke="#1d3b6e" stroke-width="6"/>
+  <!-- barcode on the label -->
+  <g fill="#1d3b6e">
+    <rect x="88" y="176" width="6" height="26"/><rect x="98" y="176" width="3" height="26"/>
+    <rect x="105" y="176" width="8" height="26"/><rect x="117" y="176" width="3" height="26"/>
+    <rect x="124" y="176" width="5" height="26"/><rect x="133" y="176" width="9" height="26"/>
+    <rect x="146" y="176" width="3" height="26"/><rect x="153" y="176" width="6" height="26"/>
+    <rect x="163" y="176" width="4" height="26"/>
+  </g>
+</svg>

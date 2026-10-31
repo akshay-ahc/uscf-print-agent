@@ -1,4 +1,4 @@
-// USCF Print Agent: a small program for the shipping PC. It lists the
+// USCF Portal Print Agent: a small program for the shipping PC. It lists the
 // computer's printers and prints shipping labels on them, on behalf of the
 // Shipping Station page in the browser. Nothing leaves the PC: the page talks
 // to it on 127.0.0.1 only, after a one-time pairing with a code from the tray.
@@ -33,14 +33,17 @@ func main() {
 	flag.Parse()
 
 	if *version {
-		fmt.Println("uscf-print-agent", Version)
+		fmt.Println(ProductName, Version)
 		return
+	}
+	if !*uninstall && installSelf() {
+		return // the installed copy has been started instead
 	}
 	if *uninstall {
 		if err := removeAutostart(); err != nil {
 			log.Fatalf("could not remove the login item: %v", err)
 		}
-		fmt.Println("USCF Print Agent will no longer start at login.")
+		fmt.Println(ProductName + " will no longer start at login.")
 		return
 	}
 	// Start at login from the first run on: nobody on the shipping team should
@@ -51,7 +54,7 @@ func main() {
 		}
 		log.Printf("could not add the login item: %v", err)
 	} else if *install {
-		fmt.Println("USCF Print Agent will start at login.")
+		fmt.Println(ProductName + " will start at login.")
 	}
 
 	cfg, err := LoadConfig()
@@ -65,14 +68,14 @@ func main() {
 	if err != nil {
 		var opErr *net.OpError
 		if errors.As(err, &opErr) {
-			fmt.Fprintln(os.Stderr, "USCF Print Agent is already running on this computer.")
+			fmt.Fprintln(os.Stderr, ProductName+" is already running on this computer.")
 			os.Exit(0)
 		}
 		log.Fatalf("listen: %v", err)
 	}
 	httpSrv := &http.Server{Handler: srv.Handler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 60 * time.Second}
 	go func() {
-		log.Printf("USCF Print Agent %s listening on http://%s", Version, srv.addr())
+		log.Printf("%s %s listening on http://%s", ProductName, Version, srv.addr())
 		if err := httpSrv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("serve: %v", err)
 		}

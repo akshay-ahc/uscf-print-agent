@@ -1,4 +1,4 @@
-# Builds the USCF Print Agent for Windows and macOS and attaches the files to a
+# Builds the USCF Portal Print Agent for Windows and macOS and attaches the files to a
 # GitHub Release, so the Shipping Station's "Install the print agent" page can
 # link to https://github.com/<owner>/<repo>/releases/latest/download/<file>.
 #
@@ -26,9 +26,13 @@ jobs:
         shell: bash
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-s -w -H windowsgui -X main.Version=$VERSION" -o dist/uscf-print-agent-windows-amd64.exe .
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || VERSION=0.0.0
+          # Icon + "USCF Portal Print Agent" name/version in the .exe's properties (winres/winres.json).
+          go install github.com/tc-hib/go-winres@v0.3.3
+          go-winres make --in winres/winres.json --arch amd64 --file-version "$VERSION" --product-version "$VERSION"
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-s -w -H windowsgui -X main.Version=$VERSION" -o "dist/USCF-Portal-Print-Agent.exe" .
       - uses: actions/upload-artifact@v4
-        with: { name: windows, path: dist/uscf-print-agent-windows-amd64.exe }
+        with: { name: windows, path: dist/USCF-Portal-Print-Agent.exe }
 
   macos:
     runs-on: macos-latest
@@ -74,9 +78,33 @@ jobs:
           exit 0
           EOF
           chmod +x scripts/postinstall
-          pkgbuild --root pkgroot --scripts scripts --identifier com.uscompoundingfactory.print-agent --version "$VERSION" --install-location / dist/uscf-print-agent-macos.pkg
+          pkgbuild --root pkgroot --scripts scripts --identifier com.uscompoundingfactory.print-agent --version "$VERSION" --install-location / build/component.pkg
+          # Wrap it so the Installer window has the product name, the icon and a short welcome text.
+          mkdir -p resources
+          cp assets/pkg-background.png resources/background.png
+          cat > resources/welcome.html <<'EOF'
+          <html><body style="font-family:-apple-system,Helvetica;font-size:13px">
+          <p>This installs <b>USCF Portal Print Agent</b> on this Mac. It lets the Shipping Station print labels on this computer's printer and shows which barcode scanner is plugged in.</p>
+          <p>After installing, look for its icon in the menu bar: it shows the pairing code to type into the station's printer setup.</p>
+          </body></html>
+          EOF
+          cat > distribution.xml <<EOF
+          <?xml version="1.0" encoding="utf-8"?>
+          <installer-gui-script minSpecVersion="1">
+            <title>USCF Portal Print Agent</title>
+            <welcome file="welcome.html"/>
+            <background file="background.png" alignment="bottomleft" scaling="none"/>
+            <background-darkAqua file="background.png" alignment="bottomleft" scaling="none"/>
+            <options customize="never" require-scripts="false" hostArchitectures="arm64,x86_64"/>
+            <domains enable_localSystem="true"/>
+            <choices-outline><line choice="default"/></choices-outline>
+            <choice id="default" title="USCF Portal Print Agent"><pkg-ref id="com.uscompoundingfactory.print-agent"/></choice>
+            <pkg-ref id="com.uscompoundingfactory.print-agent" version="$VERSION">component.pkg</pkg-ref>
+          </installer-gui-script>
+          EOF
+          productbuild --distribution distribution.xml --resources resources --package-path build "dist/USCF-Portal-Print-Agent.pkg"
       - uses: actions/upload-artifact@v4
-        with: { name: macos, path: dist/uscf-print-agent-macos.pkg }
+        with: { name: macos, path: dist/USCF-Portal-Print-Agent.pkg }
 
   release:
     needs: [windows, macos]
@@ -87,13 +115,13 @@ jobs:
         with: { path: dist, merge-multiple: true }
       - uses: softprops/action-gh-release@v2
         with:
-          name: USCF Print Agent ${{ github.ref_name }}
+          name: USCF Portal Print Agent ${{ github.ref_name }}
           files: |
-            dist/uscf-print-agent-windows-amd64.exe
-            dist/uscf-print-agent-macos.pkg
+            dist/USCF-Portal-Print-Agent.exe
+            dist/USCF-Portal-Print-Agent.pkg
           body: |
-            USCF Print Agent for the Shipping Station.
+            USCF Portal Print Agent for the Shipping Station.
 
-            **Windows**: download the `.exe`, run it (choose "More info → Run anyway" if Windows warns), then on the station open Printer setup and type the pairing code from the tray icon. It starts at login by itself from then on.
+            **Windows**: download the `.exe`, run it (choose "More info → Run anyway" if Windows warns). It copies itself into your Programs folder and starts, so the download can be deleted. Then on the station open Printer setup and type the pairing code from the tray icon. It starts at login by itself from then on.
 
             **macOS**: download the `.pkg`. If macOS blocks it, open System Settings → Privacy & Security, scroll down and click "Open Anyway", then run the installer. It starts at login by itself; the pairing code is in the menu-bar icon.

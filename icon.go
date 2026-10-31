@@ -2,9 +2,11 @@ package main
 
 import _ "embed"
 
-// The tray icon: the portal's icon. Windows wants an .ico, macOS/Linux a PNG.
+// Tray icons. macOS gets a monochrome "template" image (the menu bar recolours
+// it for light/dark); Windows gets the full-colour .ico. The source SVGs are in
+// assets/, rasterized by assets/README.md's steps.
 //
-//go:embed icon.png
+//go:embed tray-template.png
 var trayIconPNG []byte
 
 //go:embed icon.ico

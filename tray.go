@@ -16,9 +16,9 @@ func runTray(srv *Server) {
 
 func trayReady(srv *Server) {
 	systray.SetTemplateIcon(trayIcon, trayIcon)
-	systray.SetTooltip("USCF Print Agent")
+	systray.SetTooltip(ProductName)
 
-	status := systray.AddMenuItem("USCF Print Agent "+Version, "")
+	status := systray.AddMenuItem(ProductName+" "+Version, "")
 	status.Disable()
 	paired := systray.AddMenuItem("", "")
 	paired.Disable()

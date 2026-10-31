@@ -1,3 +1,4 @@
+*.syso
 dist/
 build/
 uscf-print-agent

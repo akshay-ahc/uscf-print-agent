@@ -10,8 +10,9 @@ import (
 
 // Config is what the agent remembers between runs: the pairing token the
 // station page holds, the port, and which portal origins may call it. It lives
-// in the user's config folder (Windows: %AppData%\USCF Print Agent, macOS:
-// ~/Library/Application Support/USCF Print Agent).
+// in the user's config folder (Windows: %AppData%\USCF Portal Print Agent, macOS:
+// ~/Library/Application Support/USCF Portal Print Agent). An older "USCF Print
+// Agent" folder is moved over, so pairing survives the rename.
 type Config struct {
 	Port    int      `json:"port"`
 	Token   string   `json:"token"`
@@ -33,7 +34,13 @@ func configPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	dir = filepath.Join(dir, "USCF Print Agent")
+	old := filepath.Join(dir, "USCF Print Agent")
+	dir = filepath.Join(dir, ProductName)
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		if _, err := os.Stat(old); err == nil {
+			_ = os.Rename(old, dir)
+		}
+	}
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", err
 	}

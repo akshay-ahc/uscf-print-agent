@@ -9,7 +9,10 @@ import (
 )
 
 // Windows: the per-user Run key starts the agent at login (no admin rights needed).
-const runKeyName = "USCF Print Agent"
+const runKeyName = ProductName
+
+// The login item's name before the rename; removed when the new one is written.
+const oldRunKeyName = "USCF Print Agent"
 
 func installAutostart() error {
 	exe, err := os.Executable()
@@ -21,6 +24,7 @@ func installAutostart() error {
 		return err
 	}
 	defer k.Close()
+	_ = k.DeleteValue(oldRunKeyName)
 	return k.SetStringValue(runKeyName, `"`+exe+`"`)
 }
 
