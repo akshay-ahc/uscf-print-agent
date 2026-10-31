@@ -40,8 +40,9 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           mkdir -p dist build
-          GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "-s -w -X main.Version=$VERSION" -o build/agent-arm64 .
-          GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags "-s -w -X main.Version=$VERSION" -o build/agent-amd64 .
+          # The menu-bar icon needs cgo on macOS; Go turns cgo off when cross-compiling, so force it on for both slices.
+          CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "-s -w -X main.Version=$VERSION" -o build/agent-arm64 .
+          CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags "-s -w -X main.Version=$VERSION" -o build/agent-amd64 .
           lipo -create -output build/uscf-print-agent build/agent-arm64 build/agent-amd64
           # The .pkg installs the binary to /usr/local/bin and starts it for the installing user.
           mkdir -p pkgroot/usr/local/bin scripts
