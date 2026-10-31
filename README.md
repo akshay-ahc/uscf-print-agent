@@ -42,6 +42,8 @@ go build -ldflags "-X main.Version=0.1.0" -o uscf-print-agent .                 
 GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags "-H windowsgui" -o uscf-print-agent.exe .
 ```
 
+Unsigned installers: Windows shows SmartScreen once (More info → Run anyway); macOS blocks the .pkg until System Settings → Privacy & Security → Open Anyway (or `xattr -d com.apple.quarantine` on the file). An Apple Developer ID and a Windows code-signing certificate would remove both prompts.
+
 Releases: push a tag `vX.Y.Z`; `.github/workflows/release.yml`
 builds the Windows `.exe` and a macOS universal `.pkg` and attaches them to a
 GitHub Release, which the station's printer setup page links to.
