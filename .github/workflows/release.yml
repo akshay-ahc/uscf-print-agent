@@ -1,0 +1,78 @@
+# Builds the USCF Print Agent for Windows and macOS and attaches the files to a
+# GitHub Release, so the Shipping Station's "Install the print agent" page can
+# link to https://github.com/<owner>/<repo>/releases/latest/download/<file>.
+#
+# Trigger: push a tag like agent-v0.1.0 (or run it by hand from the Actions tab).
+# The binaries are unsigned: Windows shows "More info → Run anyway" once and macOS
+# needs right-click → Open the first time.
+name: Print agent release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.22', cache-dependency-path: go.sum }
+      - name: Build
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-s -w -H windowsgui -X main.Version=$VERSION" -o dist/uscf-print-agent-windows-amd64.exe .
+      - uses: actions/upload-artifact@v4
+        with: { name: windows, path: dist/uscf-print-agent-windows-amd64.exe }
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.22', cache-dependency-path: go.sum }
+      - name: Build universal binary and .pkg
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          mkdir -p dist build
+          GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "-s -w -X main.Version=$VERSION" -o build/agent-arm64 .
+          GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags "-s -w -X main.Version=$VERSION" -o build/agent-amd64 .
+          lipo -create -output build/uscf-print-agent build/agent-arm64 build/agent-amd64
+          # The .pkg installs the binary to /usr/local/bin and starts it for the installing user.
+          mkdir -p pkgroot/usr/local/bin scripts
+          cp build/uscf-print-agent pkgroot/usr/local/bin/uscf-print-agent
+          cat > scripts/postinstall <<'EOF'
+          #!/bin/sh
+          user="$(stat -f '%Su' /dev/console)"
+          sudo -u "$user" /usr/local/bin/uscf-print-agent --install >/dev/null 2>&1 &
+          exit 0
+          EOF
+          chmod +x scripts/postinstall
+          pkgbuild --root pkgroot --scripts scripts --identifier com.uscompoundingfactory.print-agent --version "$VERSION" --install-location / dist/uscf-print-agent-macos.pkg
+      - uses: actions/upload-artifact@v4
+        with: { name: macos, path: dist/uscf-print-agent-macos.pkg }
+
+  release:
+    needs: [windows, macos]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: dist, merge-multiple: true }
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: USCF Print Agent ${{ github.ref_name }}
+          files: |
+            dist/uscf-print-agent-windows-amd64.exe
+            dist/uscf-print-agent-macos.pkg
+          body: |
+            USCF Print Agent for the Shipping Station.
+
+            **Windows**: download the `.exe`, run it (choose "More info → Run anyway" if Windows warns), then on the station open Printer setup and type the pairing code from the tray icon. To start at login, run it once as `uscf-print-agent-windows-amd64.exe --install`.
+
+            **macOS**: download the `.pkg`, right-click → Open, install. It starts at login by itself; the pairing code is in the menu-bar icon.

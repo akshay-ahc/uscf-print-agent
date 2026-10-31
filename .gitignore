@@ -1,0 +1,5 @@
+dist/
+build/
+uscf-print-agent
+*.exe
+*.pkg
