@@ -74,6 +74,6 @@ jobs:
           body: |
             USCF Print Agent for the Shipping Station.
 
-            **Windows**: download the `.exe`, run it (choose "More info → Run anyway" if Windows warns), then on the station open Printer setup and type the pairing code from the tray icon. To start at login, run it once as `uscf-print-agent-windows-amd64.exe --install`.
+            **Windows**: download the `.exe`, run it (choose "More info → Run anyway" if Windows warns), then on the station open Printer setup and type the pairing code from the tray icon. It starts at login by itself from then on.
 
             **macOS**: download the `.pkg`. If macOS blocks it, open System Settings → Privacy & Security, scroll down and click "Open Anyway", then run the installer. It starts at login by itself; the pairing code is in the menu-bar icon.

@@ -26,8 +26,8 @@ Shipping Station page (HTTPS)  →  http://127.0.0.1:17870  (this agent)
 ## Run
 
 ```
-uscf-print-agent               tray icon + local API
-uscf-print-agent --install     also start at login (LaunchAgent / HKCU Run key), then run
+uscf-print-agent               tray icon + local API; registers itself to start at login (LaunchAgent / HKCU Run key)
+uscf-print-agent --install     same, and confirm the login item on the console
 uscf-print-agent --uninstall   stop starting at login
 uscf-print-agent --no-tray     headless; prints the pairing code to the log
 ```

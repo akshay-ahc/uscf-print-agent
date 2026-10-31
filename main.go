@@ -3,8 +3,8 @@
 // Shipping Station page in the browser. Nothing leaves the PC: the page talks
 // to it on 127.0.0.1 only, after a one-time pairing with a code from the tray.
 //
-//	uscf-print-agent               run (tray icon + local API)
-//	uscf-print-agent --install     also start at login from now on
+//	uscf-print-agent               run (tray icon + local API); registers itself to start at login
+//	uscf-print-agent --install     same, and confirm the login item on the console
 //	uscf-print-agent --uninstall   stop starting at login
 //	uscf-print-agent --no-tray     run headless (service / debugging)
 package main
@@ -43,10 +43,14 @@ func main() {
 		fmt.Println("USCF Print Agent will no longer start at login.")
 		return
 	}
-	if *install {
-		if err := installAutostart(); err != nil {
+	// Start at login from the first run on: nobody on the shipping team should
+	// need a command line. --install only forces it (and prints a confirmation).
+	if err := installAutostart(); err != nil {
+		if *install {
 			log.Fatalf("could not add the login item: %v", err)
 		}
+		log.Printf("could not add the login item: %v", err)
+	} else if *install {
 		fmt.Println("USCF Print Agent will start at login.")
 	}
 
