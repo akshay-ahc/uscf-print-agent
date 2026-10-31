@@ -39,9 +39,15 @@ var scannerVendors = map[uint16]string{
 
 var scannerWords = regexp.MustCompile(`(?i)\b(scanner|bar ?code|barcode|imager|usbscn|scn module|honeywell|voyager|xenon|granit|hyperion|symbol|zebra|datalogic|gryphon|quickscan|socket ?scan|inateck|nadamoo|eyoyo|tera|netum|wasp|opticon|code reader|cr\d{4}|ds\d{4}|li\d{4}|ls\d{4})\b`)
 
+// Zebra and Honeywell also make label printers; those must not be listed as scanners.
+var printerWords = regexp.MustCompile(`(?i)\b(printer|print|zd\d{3}|zt\d{3}|gk\d{3}|gx\d{3}|zp\d{3}|lp\d{4}|tlp\d{4}|pc\d{2}|pm\d{2})\b`)
+
 // looksLikeScanner decides from the USB product/vendor strings and ids.
 func looksLikeScanner(product, vendor string, vendorID uint16) bool {
 	text := product + " " + vendor
+	if printerWords.MatchString(text) {
+		return false
+	}
 	if scannerWords.MatchString(text) {
 		return true
 	}

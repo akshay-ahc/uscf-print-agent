@@ -13,7 +13,7 @@ func TestLooksLikeScanner(t *testing.T) {
 		{"USB Keyboard", "Unknown", 0x1a86, false}, // budget chip, no scanner word
 		{"NADAMOO Wireless Barcode Scanner", "", 0x1a86, true},
 		{"Apple Internal Keyboard / Trackpad", "Apple Inc.", 0x05ac, false},
-		{"Zebra ZD421", "Zebra Technologies", 0x0a5f, true}, // the printer carries a scanner word; harmless
+		{"Zebra ZD421", "Zebra Technologies", 0x0a5f, false}, // a label printer, not a scanner
 		{"USB Receiver", "Logitech", 0x046d, false},
 		{"Gryphon GD4430", "Datalogic", 0x05f9, true},
 		{"USBScn Module", "USBScn Chip", 0x0218, true}, // generic scanner chip, as seen on the test Mac
