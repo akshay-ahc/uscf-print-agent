@@ -29,10 +29,15 @@ jobs:
           [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || VERSION=0.0.0
           # Icon + "USCF Portal Print Agent" name/version in the .exe's properties (winres/winres.json).
           go install github.com/tc-hib/go-winres@v0.3.3
-          go-winres make --in winres/winres.json --arch amd64 --file-version "$VERSION" --product-version "$VERSION"
-          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-s -w -H windowsgui -X main.Version=$VERSION" -o "dist/USCF-Portal-Print-Agent.exe" .
+          go-winres make --in winres/winres.json --arch amd64,386,arm64 --file-version "$VERSION" --product-version "$VERSION"
+          # One .exe per processor; the station's setup page offers the one that fits the PC.
+          # The 64-bit Intel/AMD file keeps the original name so older links still work.
+          build() { CGO_ENABLED=0 GOOS=windows GOARCH="$1" go build -trimpath -ldflags "-s -w -H windowsgui -X main.Version=$VERSION" -o "dist/$2" .; }
+          build amd64 USCF-Portal-Print-Agent.exe
+          build 386   USCF-Portal-Print-Agent-32bit.exe
+          build arm64 USCF-Portal-Print-Agent-ARM64.exe
       - uses: actions/upload-artifact@v4
-        with: { name: windows, path: dist/USCF-Portal-Print-Agent.exe }
+        with: { name: windows, path: dist/*.exe }
 
   macos:
     runs-on: macos-latest
@@ -132,10 +137,12 @@ jobs:
           name: USCF Portal Print Agent ${{ github.ref_name }}
           files: |
             dist/USCF-Portal-Print-Agent.exe
+            dist/USCF-Portal-Print-Agent-32bit.exe
+            dist/USCF-Portal-Print-Agent-ARM64.exe
             dist/USCF-Portal-Print-Agent.pkg
           body: |
             USCF Portal Print Agent for the Shipping Station.
 
-            **Windows**: download the `.exe`, run it (choose "More info → Run anyway" if Windows warns). It copies itself into your Programs folder and starts, so the download can be deleted. Then on the station open Printer setup and type the pairing code from the tray icon. It starts at login by itself from then on.
+            **Windows** (10 or 11): the station's Printer setup page picks the right file for the PC. By hand: `USCF-Portal-Print-Agent.exe` for most PCs (64-bit Intel/AMD), `-ARM64.exe` for ARM PCs (Snapdragon), `-32bit.exe` for 32-bit Windows. Run it (choose "More info → Run anyway" if Windows warns). It copies itself into your Programs folder and starts, so the download can be deleted. Then on the station open Printer setup and type the pairing code from the tray icon. It starts at login by itself from then on.
 
             **macOS**: download the `.pkg`. If macOS blocks it, open System Settings → Privacy & Security, scroll down and click "Open Anyway", then run the installer. It starts at login by itself; the pairing code is in the menu-bar icon.
