@@ -49,3 +49,7 @@ Unsigned installers: Windows shows SmartScreen once (More info → Run anyway); 
 Releases: push a tag `vX.Y.Z`; `.github/workflows/release.yml`
 builds the Windows `.exe` and a macOS universal `.pkg` and attaches them to a
 GitHub Release, which the station's printer setup page links to.
+
+Supported systems: Windows 10 and 11 (64-bit), and macOS 10.15 Catalina or
+later on Intel and Apple silicon. The release fails if the Mac binary asks for
+a newer macOS than 10.15.

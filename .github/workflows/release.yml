@@ -41,12 +41,25 @@ jobs:
       - uses: actions/setup-go@v5
         with: { go-version: '1.22', cache-dependency-path: go.sum }
       - name: Build universal binary and .pkg
+        # Without a deployment target the C compiler uses the runner's own macOS
+        # version as the minimum (v0.3.1 needed macOS 26), and older Macs refuse
+        # to start the agent. 10.15 is the oldest macOS Go 1.22 supports.
+        env:
+          MACOSX_DEPLOYMENT_TARGET: '10.15'
+          CGO_CFLAGS: -O2 -g -mmacosx-version-min=10.15
+          CGO_LDFLAGS: -mmacosx-version-min=10.15
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           mkdir -p dist build
           # The menu-bar icon needs cgo on macOS; Go turns cgo off when cross-compiling, so force it on for both slices.
           CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "-s -w -X main.Version=$VERSION" -o build/agent-arm64 .
           CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags "-s -w -X main.Version=$VERSION" -o build/agent-amd64 .
+          # Fail the release if either slice asks for a newer macOS than 10.15.
+          for slice in build/agent-arm64 build/agent-amd64; do
+            minos="$(otool -l "$slice" | awk '/LC_BUILD_VERSION/{f=1} f && $1=="minos"{print $2; exit}')"
+            echo "$slice: minimum macOS $minos"
+            [ -n "$minos" ] && [ "$(printf '%s\n10.15\n' "$minos" | sort -V | tail -n1)" = "10.15" ] || { echo "::error::$slice needs macOS '$minos'; expected 10.15"; exit 1; }
+          done
           lipo -create -output build/uscf-print-agent build/agent-arm64 build/agent-amd64
           # The .pkg installs the binary to /usr/local/bin and starts it for the installing user.
           mkdir -p pkgroot/usr/local/bin scripts
@@ -96,6 +109,7 @@ jobs:
             <background file="background.png" alignment="bottomleft" scaling="none"/>
             <background-darkAqua file="background.png" alignment="bottomleft" scaling="none"/>
             <options customize="never" require-scripts="false" hostArchitectures="arm64,x86_64"/>
+            <allowed-os-versions><os-version min="10.15"/></allowed-os-versions>
             <domains enable_localSystem="true"/>
             <choices-outline><line choice="default"/></choices-outline>
             <choice id="default" title="USCF Portal Print Agent"><pkg-ref id="com.uscompoundingfactory.print-agent"/></choice>
