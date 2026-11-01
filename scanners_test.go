@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestLooksLikeScanner(t *testing.T) {
 	cases := []struct {
@@ -30,4 +33,34 @@ func TestLooksLikeScanner(t *testing.T) {
 	if s.Name != "Voyager-1200g" || s.Vendor != "Honeywell" || s.ID != "0c2e:0b61" {
 		t.Errorf("pretty: %+v", s)
 	}
+	// Windows shows the Helett as "HID Keyboard Device"; its ids alone must be enough.
+	if !isAliasedScanner(0x0218, 0x0210) || isAliasedScanner(0x046d, 0xc548) {
+		t.Errorf("isAliasedScanner")
+	}
+}
+
+func TestCachedScannersDoesNotWaitOnRefresh(t *testing.T) {
+	calls := 0
+	release := make(chan struct{})
+	list := func() ([]Scanner, error) {
+		calls++
+		if calls > 1 {
+			<-release // a slow OS listing
+		}
+		return []Scanner{{Name: "HT410"}}, nil
+	}
+	get := cachedScanners(list)
+	if s, _ := get(); len(s) != 1 {
+		t.Fatalf("first call: %v", s)
+	}
+	// Let the cache go stale; the next call must return the old list at once.
+	time.Sleep(5100 * time.Millisecond)
+	done := make(chan struct{})
+	go func() { get(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("status waited for the scanner refresh")
+	}
+	close(release)
 }

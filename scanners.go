@@ -66,6 +66,13 @@ var scannerAliases = map[string]Scanner{
 	"0218:0210": {Name: "HT410", Vendor: "Helett"}, // reports "USBScn Chip" / "USBScn Module"
 }
 
+// isAliasedScanner says whether the ids are a scanner listed in scannerAliases,
+// whatever text the OS shows for it.
+func isAliasedScanner(vendorID, productID uint16) bool {
+	_, ok := scannerAliases[hex4(vendorID)+":"+hex4(productID)]
+	return ok
+}
+
 // prettyScanner tidies the OS strings ("Honeywell Imaging & Mobility" + "Voyager-1200g").
 func prettyScanner(product, vendor string, vendorID uint16, productID uint16) Scanner {
 	vendor = strings.TrimSpace(vendor)

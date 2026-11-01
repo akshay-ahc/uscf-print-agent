@@ -218,22 +218,35 @@ func (s *Server) handleQuit(w http.ResponseWriter, r *http.Request) {
 func (s *Server) addr() string { return fmt.Sprintf("127.0.0.1:%d", s.cfg.Port) }
 
 // cachedScanners asks the OS at most every few seconds: the station polls
-// status often and the USB listing is slow on both platforms.
+// status often and the USB listing can be slow. Only the first call waits for
+// the OS; after that a stale list is returned at once and refreshed in the
+// background, because the station gives /v1/status 1.5 s before it decides
+// the agent is not running.
 func cachedScanners(list func() ([]Scanner, error)) func() ([]Scanner, error) {
 	var (
-		mu    sync.Mutex
-		last  time.Time
-		value []Scanner
-		err   error
+		mu         sync.Mutex
+		last       time.Time
+		value      []Scanner
+		err        error
+		refreshing bool
 	)
 	return func() ([]Scanner, error) {
 		mu.Lock()
 		defer mu.Unlock()
-		if time.Since(last) < 5*time.Second {
+		if last.IsZero() {
+			value, err = list()
+			last = time.Now()
 			return value, err
 		}
-		value, err = list()
-		last = time.Now()
+		if time.Since(last) >= 5*time.Second && !refreshing {
+			refreshing = true
+			go func() {
+				v, e := list()
+				mu.Lock()
+				value, err, last, refreshing = v, e, time.Now(), false
+				mu.Unlock()
+			}()
+		}
 		return value, err
 	}
 }
