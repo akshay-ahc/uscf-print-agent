@@ -59,11 +59,14 @@ jobs:
           # The menu-bar icon needs cgo on macOS; Go turns cgo off when cross-compiling, so force it on for both slices.
           CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "-s -w -X main.Version=$VERSION" -o build/agent-arm64 .
           CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags "-s -w -X main.Version=$VERSION" -o build/agent-amd64 .
-          # Fail the release if either slice asks for a newer macOS than 10.15.
-          for slice in build/agent-arm64 build/agent-amd64; do
-            minos="$(otool -l "$slice" | awk '/LC_BUILD_VERSION/{f=1} f && $1=="minos"{print $2; exit}')"
-            echo "$slice: minimum macOS $minos"
-            [ -n "$minos" ] && [ "$(printf '%s\n10.15\n' "$minos" | sort -V | tail -n1)" = "10.15" ] || { echo "::error::$slice needs macOS '$minos'; expected 10.15"; exit 1; }
+          # Fail the release if a slice asks for a newer macOS than its oldest
+          # possible Mac: 10.15 for Intel, 11.0 for Apple silicon (the first
+          # macOS for those Macs; the linker never sets arm64 lower than 11.0).
+          for check in "build/agent-amd64 10.15" "build/agent-arm64 11.0"; do
+            set -- $check
+            minos="$(otool -l "$1" | awk '/LC_BUILD_VERSION/{f=1} f && $1=="minos"{print $2; exit}')"
+            echo "$1: minimum macOS $minos"
+            [ -n "$minos" ] && [ "$(printf '%s\n%s\n' "$minos" "$2" | sort -V | tail -n1)" = "$2" ] || { echo "::error::$1 needs macOS '$minos'; expected $2"; exit 1; }
           done
           lipo -create -output build/uscf-print-agent build/agent-arm64 build/agent-amd64
           # The .pkg installs the binary to /usr/local/bin and starts it for the installing user.

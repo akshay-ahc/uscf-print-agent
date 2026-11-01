@@ -52,4 +52,5 @@ GitHub Release, which the station's printer setup page links to.
 
 Supported systems: Windows 10 and 11 (64-bit), and macOS 10.15 Catalina or
 later on Intel and Apple silicon. The release fails if the Mac binary asks for
-a newer macOS than 10.15.
+a newer macOS than 10.15 on Intel or 11.0 on Apple silicon (the first macOS
+those Macs came with).
