@@ -10,6 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 // installSelf copies the downloaded .exe into the user's Programs folder
@@ -35,8 +38,11 @@ func installSelf() bool {
 		return false
 	}
 	if err := copyFile(exe, target); err != nil {
-		// A running copy keeps its .exe locked: ask it to quit, then try once more.
+		// A running copy keeps its .exe locked: ask it to quit (needs the
+		// pairing token), stop it if it is still there (it is not paired yet,
+		// or did not answer), then try once more.
 		askRunningAgentToQuit()
+		stopRunningCopies(target)
 		if err := copyFile(exe, target); err != nil {
 			log.Printf("install: %v (running from %s instead)", err, exe)
 			return false
@@ -60,7 +66,42 @@ func copyFile(src, dst string) error {
 	if err := os.WriteFile(tmp, data, 0o755); err != nil {
 		return err
 	}
-	return os.Rename(tmp, dst)
+	if err := os.Rename(tmp, dst); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return nil
+}
+
+// stopRunningCopies ends every process running the installed exe (this user's
+// own agent), and waits for each to exit so its .exe and port are free.
+func stopRunningCopies(target string) {
+	snap, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPPROCESS, 0)
+	if err != nil {
+		return
+	}
+	defer windows.CloseHandle(snap)
+	var pe windows.ProcessEntry32
+	pe.Size = uint32(unsafe.Sizeof(pe))
+	for err := windows.Process32First(snap, &pe); err == nil; err = windows.Process32Next(snap, &pe) {
+		if pe.ProcessID == uint32(os.Getpid()) || !strings.EqualFold(windows.UTF16ToString(pe.ExeFile[:]), filepath.Base(target)) {
+			continue
+		}
+		h, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION|windows.PROCESS_TERMINATE|windows.SYNCHRONIZE, false, pe.ProcessID)
+		if err != nil {
+			continue
+		}
+		buf := make([]uint16, windows.MAX_LONG_PATH)
+		n := uint32(len(buf))
+		if windows.QueryFullProcessImageName(h, 0, &buf[0], &n) == nil && strings.EqualFold(windows.UTF16ToString(buf[:n]), target) {
+			if err := windows.TerminateProcess(h, 0); err != nil {
+				log.Printf("install: stop running copy %d: %v", pe.ProcessID, err)
+			} else {
+				_, _ = windows.WaitForSingleObject(h, 3000)
+			}
+		}
+		windows.CloseHandle(h)
+	}
 }
 
 func askRunningAgentToQuit() {
