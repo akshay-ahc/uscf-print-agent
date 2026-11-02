@@ -82,12 +82,15 @@ func main() {
 	}()
 
 	if *noTray {
+		startAutoUpdate(Version)
 		// Headless: there is no tray to read the pairing code from, so print it.
 		if cfg.Token == "" {
 			log.Printf("pairing code: %s (type it into the station's printer setup page)", srv.pairing.NewCode())
 		}
 		select {}
 	}
+	// Windows installs new releases by itself; see update.go.
+	startAutoUpdate(Version)
 	runTray(srv) // blocks until Quit
 	_ = httpSrv.Close()
 }

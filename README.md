@@ -60,3 +60,15 @@ Supported systems: Windows 10 and 11 (64-bit), and macOS 10.15 Catalina or
 later on Intel and Apple silicon. The release fails if the Mac binary asks for
 a newer macOS than 10.15 on Intel or 11.0 on Apple silicon (the first macOS
 those Macs came with).
+
+## Updates
+
+- Windows (0.4.0 and later) updates itself: a few minutes after starting, then
+  every 6 hours, it reads the latest GitHub release, downloads the .exe for its
+  processor, checks it against the release's `SHA256SUMS.txt`, and installs it
+  (pairing and settings are kept). Downloads only come from GitHub.
+- macOS needs an administrator password to install a package, so a Mac cannot
+  update silently; the Shipping Station opens the update popup instead.
+- To stop a bad release from spreading, delete it on GitHub: the previous
+  release becomes "latest" again and agents stop updating to it.
+

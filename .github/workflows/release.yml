@@ -135,6 +135,10 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with: { path: dist, merge-multiple: true }
+      # Installed agents check every download against this file before
+      # installing an update (see update.go).
+      - name: Checksums
+        run: cd dist && sha256sum USCF-Portal-Print-Agent.exe USCF-Portal-Print-Agent-32bit.exe USCF-Portal-Print-Agent-ARM64.exe USCF-Portal-Print-Agent.pkg > SHA256SUMS.txt && cat SHA256SUMS.txt
       - uses: softprops/action-gh-release@v2
         with:
           name: USCF Portal Print Agent ${{ github.ref_name }}
@@ -143,9 +147,12 @@ jobs:
             dist/USCF-Portal-Print-Agent-32bit.exe
             dist/USCF-Portal-Print-Agent-ARM64.exe
             dist/USCF-Portal-Print-Agent.pkg
+            dist/SHA256SUMS.txt
           body: |
             USCF Portal Print Agent for the Shipping Station.
 
             **Windows** (10 or 11): the station's Printer setup page picks the right file for the PC. By hand: `USCF-Portal-Print-Agent.exe` for most PCs (64-bit Intel/AMD), `-ARM64.exe` for ARM PCs (Snapdragon), `-32bit.exe` for 32-bit Windows. Run it (choose "More info → Run anyway" if Windows warns). It copies itself into your Programs folder and starts, so the download can be deleted. Then on the station open Printer setup and type the pairing code from the tray icon. It starts at login by itself from then on.
+
+            **Updates**: from 0.4.0 on, Windows installs new releases by itself (it checks every few hours and verifies each file against `SHA256SUMS.txt`). Macs are asked to update by the Shipping Station.
 
             **macOS**: download the `.pkg`. If macOS blocks it, open System Settings → Privacy & Security, scroll down and click "Open Anyway", then run the installer. It starts at login by itself; the pairing code is in the menu-bar icon.

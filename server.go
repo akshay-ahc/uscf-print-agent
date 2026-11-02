@@ -75,7 +75,9 @@ type statusResponse struct {
 	Paired   bool      `json:"paired"`
 	Printers []Printer `json:"printers"`
 	Scanners []Scanner `json:"scanners"`
-	Error    string    `json:"error,omitempty"`
+	// AutoUpdate is true where the agent installs new releases by itself (Windows).
+	AutoUpdate bool   `json:"auto_update"`
+	Error      string `json:"error,omitempty"`
 }
 
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
@@ -83,7 +85,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	resp := statusResponse{Version: s.version, Paired: s.cfg.Token != ""}
+	resp := statusResponse{Version: s.version, Paired: s.cfg.Token != "", AutoUpdate: autoUpdateSupported}
 	printers, err := s.spooler.ListPrinters()
 	if err != nil {
 		resp.Error = "could not list printers: " + err.Error()
