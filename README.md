@@ -17,9 +17,15 @@ Shipping Station page (HTTPS)  →  http://127.0.0.1:17870  (this agent)
 - Pairing: the tray shows a 6-digit code (10-minute life, single use). The
   station page exchanges it for a random token, which it must send on every
   print. "New pairing code" in the tray forgets the old token.
-- ZPL goes to the printer as raw bytes (Zebra). PDF goes through the OS print
-  path (CUPS on macOS; on Windows the program registered for PDFs, e.g. Adobe
-  Reader; Edge cannot, so use ZPL for a Zebra).
+- PDF prints silently on any printer: on macOS through CUPS, on Windows with
+  Windows' own PDF engine (no Adobe Reader or other PDF program needed). On a
+  label printer it is fitted to a 4x6 label; on a page printer it prints at
+  its real 4x6 size.
+- ZPL (the station's optional fast mode) goes to the printer as raw bytes, so
+  only Zebra-type printers take it.
+- `/v1/status` reports each printer's driver (or make and model), its kind
+  (`label`, `office`, or `raw` for a driverless pass-through queue) and
+  whether it takes ZPL.
 - Config (token, port, allowed origins): `~/Library/Application Support/USCF Portal Print Agent/config.json`
   on macOS, `%AppData%\USCF Portal Print Agent\config.json` on Windows.
 

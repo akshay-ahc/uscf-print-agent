@@ -3,9 +3,13 @@
 package main
 
 import (
+	"context"
+	_ "embed"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 	"unsafe"
@@ -13,10 +17,10 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// Windows prints through the spooler (winspool). ZPL is written to the printer
-// as a RAW document, which is what a Zebra expects. A PDF is handed to the
-// program Windows uses for PDFs with the "printto" verb (Adobe Reader and most
-// viewers support it; Edge does not), so for a Zebra the station sends ZPL.
+// Windows prints through the spooler (winspool). A ZPL label is written to the
+// printer as a RAW document, which is what a Zebra expects. A PDF label is
+// drawn by Windows' own PDF engine and sent through the printer's driver
+// (printpdf_windows.ps1), so it prints on any printer with no PDF program.
 type winSpooler struct{}
 
 func newSpooler() Spooler { return winSpooler{} }
@@ -94,7 +98,12 @@ func (winSpooler) ListPrinters() ([]Printer, error) {
 		} else if info.Status&(printerStatusError|printerStatusPaperOut) != 0 {
 			state = "unknown"
 		}
-		out = append(out, Printer{Name: name, Default: name == def, State: state})
+		driver := ""
+		if info.DriverName != nil {
+			driver = windows.UTF16PtrToString(info.DriverName)
+		}
+		kind, zpl := classifyPrinter(name, driver)
+		out = append(out, Printer{Name: name, Default: name == def, State: state, Driver: driver, Kind: kind, ZPL: zpl})
 	}
 	return out, nil
 }
@@ -121,22 +130,20 @@ func (s winSpooler) Print(job PrintJob) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	found := false
-	for _, p := range printers {
-		if p.Name == job.Printer {
-			found = true
-			if p.State == "offline" {
-				return "", errPrinterOffline
-			}
-		}
-	}
+	p, found := kindOf(printers, job.Printer)
 	if !found {
 		return "", errNoPrinter
+	}
+	if p.State == "offline" {
+		return "", errPrinterOffline
 	}
 	if job.Format == "ZPL" {
 		return printRaw(job.Printer, job.Data)
 	}
-	return printPDF(job.Printer, job.Data)
+	if p.Kind == "raw" {
+		return "", errRawQueuePDF
+	}
+	return printPDF(job.Printer, job.Data, p.Kind == "label")
 }
 
 type docInfo1 struct {
@@ -170,25 +177,51 @@ func printRaw(printer string, data []byte) (string, error) {
 	return fmt.Sprintf("%d", jobID), nil
 }
 
-// printPDF saves the PDF and asks the registered PDF program to print it to the named printer.
-func printPDF(printer string, data []byte) (string, error) {
+//go:embed printpdf_windows.ps1
+var printPDFScript []byte
+
+// printPDF prints a PDF label silently with Windows' own PDF engine (no Adobe
+// Reader or other PDF program needed): see printpdf_windows.ps1. On a label
+// printer it is fitted to a 4x6 label; on a page printer it prints at 4x6 size.
+func printPDF(printer string, data []byte, label bool) (string, error) {
 	dir := filepath.Join(os.TempDir(), "uscf-print-agent")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", err
 	}
-	path := filepath.Join(dir, fmt.Sprintf("label-%d.pdf", time.Now().UnixNano()))
-	if err := os.WriteFile(path, data, 0o600); err != nil {
+	go cleanOldLabels(dir)
+	stamp := time.Now().UnixNano()
+	pdfPath := filepath.Join(dir, fmt.Sprintf("label-%d.pdf", stamp))
+	scriptPath := filepath.Join(dir, "printpdf.ps1")
+	if err := os.WriteFile(pdfPath, data, 0o600); err != nil {
 		return "", err
 	}
-	verb, _ := syscall.UTF16PtrFromString("printto")
-	file, _ := syscall.UTF16PtrFromString(path)
-	args, _ := syscall.UTF16PtrFromString(`"` + printer + `"`)
-	r, _, _ := procShellExecuteW.Call(0, uintptr(unsafe.Pointer(verb)), uintptr(unsafe.Pointer(file)), uintptr(unsafe.Pointer(args)), 0, 0)
-	if r <= 32 {
-		return "", fmt.Errorf("no PDF program on this computer can print to %q; use ZPL for a Zebra, or install Adobe Reader", printer)
+	defer os.Remove(pdfPath)
+	if err := os.WriteFile(scriptPath, printPDFScript, 0o600); err != nil {
+		return "", err
 	}
-	// The viewer reads the file asynchronously; clean up old files instead of this one.
-	go cleanOldLabels(dir)
+	labelArg := "0"
+	if label {
+		labelArg = "1"
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+		"-File", scriptPath, "-Pdf", pdfPath, "-Printer", printer, "-Label", labelArg)
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	out, err := cmd.CombinedOutput()
+	if ctx.Err() != nil {
+		return "", fmt.Errorf("printing took too long; check that %q is on and has labels", printer)
+	}
+	if err != nil {
+		msg := strings.TrimSpace(string(out))
+		if i := strings.Index(msg, "\n"); i > 0 {
+			msg = strings.TrimSpace(msg[:i])
+		}
+		if msg == "" {
+			msg = err.Error()
+		}
+		return "", fmt.Errorf("could not print the PDF label: %s", msg)
+	}
 	return "pdf", nil
 }
 

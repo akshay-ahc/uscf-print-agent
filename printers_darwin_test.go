@@ -2,7 +2,10 @@
 
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestParseLpstat(t *testing.T) {
 	out := `printer Zebra_ZD421 is idle.  enabled since Fri Oct 31 10:02:11 2026
@@ -27,5 +30,26 @@ system default destination: Zebra_ZD421
 	}
 	if len(parseLpstat("lpstat: No destinations added.\n")) != 0 {
 		t.Fatal("no printers should parse as empty")
+	}
+}
+
+func TestMakeAndModelAndLpArgs(t *testing.T) {
+	out := "copies=1 device-uri=usb://Zebra/ZP%20450 printer-make-and-model='Zebra ZP 450-200' printer-type=4\n"
+	if got := parseMakeAndModel(out); got != "Zebra ZP 450-200" {
+		t.Errorf("make and model: %q", got)
+	}
+	if got := parseMakeAndModel("printer-make-and-model=Local\n"); got != "Local" {
+		t.Errorf("unquoted: %q", got)
+	}
+	label := Printer{Name: "Rollo", Kind: "label"}
+	if got := strings.Join(lpArgs(PrintJob{Printer: "Rollo", Format: "PDF"}, label), " "); !strings.Contains(got, "media=w288h432") || !strings.Contains(got, "fit-to-page") {
+		t.Errorf("label PDF args: %s", got)
+	}
+	office := Printer{Name: "HP", Kind: "office"}
+	if got := strings.Join(lpArgs(PrintJob{Printer: "HP", Format: "PDF"}, office), " "); strings.Contains(got, "media=") || strings.Contains(got, "raw") {
+		t.Errorf("office PDF args: %s", got)
+	}
+	if got := strings.Join(lpArgs(PrintJob{Printer: "Zebra", Format: "ZPL"}, Printer{Kind: "label", ZPL: true}), " "); !strings.Contains(got, "-o raw") {
+		t.Errorf("ZPL args: %s", got)
 	}
 }

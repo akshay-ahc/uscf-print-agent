@@ -9,6 +9,8 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+	"sync"
+	"time"
 )
 
 // macOS prints through CUPS: `lpstat` lists printers and their state, `lp`
@@ -32,7 +34,68 @@ func (cupsSpooler) ListPrinters() ([]Printer, error) {
 			return nil, fmt.Errorf("lpstat: %w", err)
 		}
 	}
-	return parseLpstat(string(out)), nil
+	printers := parseLpstat(string(out))
+	for i := range printers {
+		printers[i].Driver = makeAndModel(printers[i].Name)
+		printers[i].Kind, printers[i].ZPL = classifyPrinter(printers[i].Name, printers[i].Driver)
+	}
+	return printers, nil
+}
+
+var makeModelRe = regexp.MustCompile(`printer-make-and-model='([^']*)'|printer-make-and-model=(\S+)`)
+
+// The make and model barely ever changes, and the station asks for status
+// every few seconds, so each printer's answer is kept for a minute.
+var (
+	makeModelMu    sync.Mutex
+	makeModelCache = map[string]struct {
+		value string
+		at    time.Time
+	}{}
+)
+
+// makeAndModel asks CUPS for the printer's make and model ("Zebra ZP 450-200",
+// "HP LaserJet ...", or "Local Raw Printer" for a pass-through queue).
+func makeAndModel(name string) string {
+	makeModelMu.Lock()
+	if c, ok := makeModelCache[name]; ok && time.Since(c.at) < time.Minute {
+		makeModelMu.Unlock()
+		return c.value
+	}
+	makeModelMu.Unlock()
+	out, _ := exec.Command("lpoptions", "-p", name).Output()
+	value := parseMakeAndModel(string(out))
+	makeModelMu.Lock()
+	makeModelCache[name] = struct {
+		value string
+		at    time.Time
+	}{value, time.Now()}
+	makeModelMu.Unlock()
+	return value
+}
+
+func parseMakeAndModel(out string) string {
+	m := makeModelRe.FindStringSubmatch(out)
+	if m == nil {
+		return ""
+	}
+	if m[1] != "" {
+		return m[1]
+	}
+	return m[2]
+}
+
+// lpArgs builds the lp command for a job. A PDF on a label printer is fitted
+// to a 4x6 label; on a page printer it prints at its own 4x6 size. ZPL goes raw.
+func lpArgs(job PrintJob, p Printer) []string {
+	args := []string{"-d", job.Printer, "-t", "USCF label"}
+	switch {
+	case job.Format == "ZPL":
+		args = append(args, "-o", "raw")
+	case p.Kind == "label":
+		args = append(args, "-o", "media=w288h432", "-o", "fit-to-page")
+	}
+	return args
 }
 
 // parseLpstat turns `lpstat -p -d` output into printers. Lines look like
@@ -67,23 +130,17 @@ func (s cupsSpooler) Print(job PrintJob) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	found := false
-	for _, p := range printers {
-		if p.Name == job.Printer {
-			found = true
-			if p.State == "offline" {
-				return "", errPrinterOffline
-			}
-		}
-	}
+	p, found := kindOf(printers, job.Printer)
 	if !found {
 		return "", errNoPrinter
 	}
-	args := []string{"-d", job.Printer, "-t", "USCF label"}
-	if job.Format == "ZPL" {
-		args = append(args, "-o", "raw")
+	if p.State == "offline" {
+		return "", errPrinterOffline
 	}
-	cmd := exec.Command("lp", args...)
+	if job.Format == "PDF" && p.Kind == "raw" {
+		return "", errRawQueuePDF
+	}
+	cmd := exec.Command("lp", lpArgs(job, p)...)
 	cmd.Stdin = bytes.NewReader(job.Data)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
