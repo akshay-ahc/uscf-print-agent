@@ -39,8 +39,8 @@ func TestParseChecksums(t *testing.T) {
 func TestAllowedDownloadHost(t *testing.T) {
 	for raw, want := range map[string]bool{
 		"https://github.com/akshay-ahc/uscf-print-agent/releases/download/v0.4.0/x.exe": true,
-		"https://objects.githubusercontent.com/github-production-release-asset/1":        true,
-		"https://api.github.com/repos/x/y/releases/latest":                               true,
+		"https://objects.githubusercontent.com/github-production-release-asset/1":       true,
+		"https://api.github.com/repos/x/y/releases/latest":                              true,
 		"http://github.com/x":                       false,
 		"https://evil.example.com/x.exe":            false,
 		"https://github.com.evil.example.com/x.exe": false,

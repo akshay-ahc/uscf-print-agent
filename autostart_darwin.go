@@ -8,7 +8,8 @@ import (
 	"path/filepath"
 )
 
-// macOS: a per-user LaunchAgent starts the agent at login and keeps it running.
+// macOS: a per-user LaunchAgent starts the agent at login and restarts it after
+// a crash. A clean exit (Quit in the menu bar) stays quit until the next login.
 const launchAgentLabel = "com.uscompoundingfactory.print-agent"
 
 func launchAgentPath() (string, error) {
@@ -32,19 +33,22 @@ func installAutostart() error {
 	if err != nil {
 		return err
 	}
-	plist := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
+	return os.WriteFile(path, []byte(launchAgentPlist(exe)), 0o644)
+}
+
+func launchAgentPlist(exe string) string {
+	return fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
   <key>Label</key><string>%s</string>
   <key>ProgramArguments</key><array><string>%s</string></array>
   <key>RunAtLoad</key><true/>
-  <key>KeepAlive</key><true/>
+  <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
   <key>ProcessType</key><string>Interactive</string>
 </dict>
 </plist>
 `, launchAgentLabel, exe)
-	return os.WriteFile(path, []byte(plist), 0o644)
 }
 
 func removeAutostart() error {
